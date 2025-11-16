@@ -11,8 +11,8 @@ const MAX_ARROWS_PER_TURN = 10;
 const GAUSSIAN_SIGMA = 50;
 const GAUSSIAN_RADIUS = 150; // 3 * sigma
 const FRONTLINE_SAMPLE_INTERVAL = 5;
-const MOVEMENT_CONSTANT = 35;
-const MAX_MOVEMENT_PER_TURN = 350;
+const MOVEMENT_CONSTANT = 70;
+const MAX_MOVEMENT_PER_TURN = 700;
 const TURN_TIME_LIMIT = 30;
 const ARROW_FLASH_DURATION = 1000; // 1 second to show arrows
 const ANIMATION_DURATION = 3000; // 3 seconds for frontline movement
@@ -376,8 +376,16 @@ function resolveCombat() {
     // Smooth the new frontline and deep copy
     game.newFrontline = smoothFrontline(newFrontline).map(p => ({ x: p.x, y: p.y }));
 
-    // Debug: Show forces
-    alert(`Combat:\nRed Arrows: ${game.redForces.length}\nBlue Arrows: ${game.blueForces.length}\nTotal Red Force: ${totalRedForce.toFixed(1)}\nTotal Blue Force: ${totalBlueForce.toFixed(1)}`);
+    // Debug logging
+    console.log(`Turn ${game.turn} Combat - Red: ${game.redForces.length} arrows (${totalRedForce.toFixed(1)} force), Blue: ${game.blueForces.length} arrows (${totalBlueForce.toFixed(1)} force)`);
+
+    // Sample a few arrow positions for debugging
+    if (game.redForces.length > 0) {
+        console.log('Red arrow sample:', game.redForces[0]);
+    }
+    if (game.blueForces.length > 0) {
+        console.log('Blue arrow sample:', game.blueForces[0]);
+    }
 
     // Now enter animation phase
     game.phase = 'animation';
