@@ -14,7 +14,7 @@ const FRONTLINE_SAMPLE_INTERVAL = 5;
 const MOVEMENT_CONSTANT = 20;
 const MAX_MOVEMENT_PER_TURN = 200;
 const TURN_TIME_LIMIT = 30;
-const ANIMATION_DURATION = 2000; // 2 seconds
+const ANIMATION_DURATION = 4000; // 4 seconds for smoother animation
 
 // Game State
 class GameState {
@@ -214,16 +214,25 @@ function clearAllArrows() {
 }
 
 function confirmDeployment() {
+    // Only allow confirmation during deployment phase
+    if (game.phase !== 'deployment') return;
+
     // Store forces for current player
     if (game.currentPlayer === 'red') {
         game.redForces = [...game.currentForces];
         game.currentForces = [];
         game.currentPlayer = 'blue';
-        game.timeRemaining = TURN_TIME_LIMIT;
+        startTimer(); // Restart timer for blue player
         updateUI();
     } else {
         game.blueForces = [...game.currentForces];
         game.currentForces = [];
+
+        // Clear timer before starting animation
+        if (game.timerInterval) {
+            clearInterval(game.timerInterval);
+            game.timerInterval = null;
+        }
 
         // Both players have deployed - resolve combat
         resolveCombat();
@@ -324,7 +333,8 @@ function getForceAtPoint(x, y, forceVectors) {
 // Combat Resolution
 function resolveCombat() {
     game.phase = 'animation';
-    game.oldFrontline = [...game.frontline];
+    // Deep copy the frontline to avoid reference issues
+    game.oldFrontline = game.frontline.map(p => ({ x: p.x, y: p.y }));
     game.animationProgress = 0;
 
     // Calculate new frontline positions
@@ -526,15 +536,23 @@ function showVictoryScreen(winner, reason) {
 function startTimer() {
     if (game.timerInterval) {
         clearInterval(game.timerInterval);
+        game.timerInterval = null;
     }
 
     game.timeRemaining = TURN_TIME_LIMIT;
+    updateTimerDisplay();
 
     game.timerInterval = setInterval(() => {
         game.timeRemaining--;
         updateTimerDisplay();
 
         if (game.timeRemaining <= 0) {
+            // Clear the timer first to prevent negative numbers
+            clearInterval(game.timerInterval);
+            game.timerInterval = null;
+            game.timeRemaining = 0;
+            updateTimerDisplay();
+
             // Auto-confirm deployment
             confirmDeployment();
         }
@@ -624,14 +642,22 @@ function render() {
     if (game.phase === 'animation' && game.oldFrontline && game.newFrontline) {
         // Interpolate between old and new frontline
         frontlineToRender = [];
-        for (let i = 0; i < game.oldFrontline.length; i++) {
+        const maxLength = Math.min(game.oldFrontline.length, game.newFrontline.length);
+        for (let i = 0; i < maxLength; i++) {
             const oldPoint = game.oldFrontline[i];
             const newPoint = game.newFrontline[i];
-            frontlineToRender.push({
-                x: oldPoint.x + (newPoint.x - oldPoint.x) * game.animationProgress,
-                y: oldPoint.y + (newPoint.y - oldPoint.y) * game.animationProgress
-            });
+            if (oldPoint && newPoint) {
+                frontlineToRender.push({
+                    x: oldPoint.x + (newPoint.x - oldPoint.x) * game.animationProgress,
+                    y: oldPoint.y + (newPoint.y - oldPoint.y) * game.animationProgress
+                });
+            }
         }
+    }
+
+    // Ensure we have a valid frontline to render
+    if (!frontlineToRender || frontlineToRender.length === 0) {
+        frontlineToRender = game.frontline;
     }
 
     // Draw territories
@@ -654,6 +680,9 @@ function render() {
 }
 
 function drawTerritories(frontline) {
+    // Safety check
+    if (!frontline || frontline.length < 2) return;
+
     // Red territory (left of frontline)
     ctx.fillStyle = 'rgba(220, 38, 38, 0.3)';
     ctx.beginPath();
