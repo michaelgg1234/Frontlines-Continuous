@@ -332,10 +332,8 @@ function getForceAtPoint(x, y, forceVectors) {
 
 // Combat Resolution
 function resolveCombat() {
-    game.phase = 'animation';
-    // Deep copy the frontline to avoid reference issues
+    // Deep copy the current frontline before changing phase
     game.oldFrontline = game.frontline.map(p => ({ x: p.x, y: p.y }));
-    game.animationProgress = 0;
 
     // Calculate new frontline positions
     const newFrontline = [];
@@ -361,14 +359,24 @@ function resolveCombat() {
         newFrontline.push({ x: newX, y: point.y });
     }
 
-    // Smooth the new frontline
-    game.newFrontline = smoothFrontline(newFrontline);
+    // Smooth the new frontline and deep copy
+    game.newFrontline = smoothFrontline(newFrontline).map(p => ({ x: p.x, y: p.y }));
+
+    // Now enter animation phase
+    game.phase = 'animation';
+    game.animationProgress = 0;
 
     // Animate the transition
     animateCombatResolution();
 }
 
 function smoothFrontline(frontline) {
+    // Validate input
+    if (!frontline || frontline.length === 0) {
+        console.error('smoothFrontline received invalid frontline');
+        return frontline;
+    }
+
     // Apply simple moving average smoothing
     const smoothed = [];
     const windowSize = 3;
@@ -404,10 +412,13 @@ function animateCombatResolution() {
         if (game.animationProgress < 1) {
             requestAnimationFrame(animate);
         } else {
-            // Animation complete
-            game.frontline = game.newFrontline;
+            // Animation complete - update frontline before clearing animation data
+            if (game.newFrontline && game.newFrontline.length > 0) {
+                game.frontline = game.newFrontline.map(p => ({ x: p.x, y: p.y }));
+            }
             game.oldFrontline = null;
             game.newFrontline = null;
+            game.animationProgress = 0;
             game.redForces = [];
             game.blueForces = [];
 
@@ -424,7 +435,6 @@ function animateCombatResolution() {
             game.currentPlayer = 'red';
             game.phase = 'deployment';
             game.forceRemaining = { red: MAX_FORCE, blue: MAX_FORCE };
-            game.timeRemaining = TURN_TIME_LIMIT;
             startTimer();
             updateUI();
         }
@@ -637,10 +647,11 @@ function render() {
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
     // Determine which frontline to draw (for animation)
-    let frontlineToRender = game.frontline;
+    let frontlineToRender = null;
 
-    if (game.phase === 'animation' && game.oldFrontline && game.newFrontline) {
-        // Interpolate between old and new frontline
+    if (game.phase === 'animation' && game.oldFrontline && game.newFrontline &&
+        game.oldFrontline.length > 0 && game.newFrontline.length > 0) {
+        // Interpolate between old and new frontline during animation
         frontlineToRender = [];
         const maxLength = Math.min(game.oldFrontline.length, game.newFrontline.length);
         for (let i = 0; i < maxLength; i++) {
@@ -653,11 +664,22 @@ function render() {
                 });
             }
         }
+
+        // Validate interpolated frontline
+        if (frontlineToRender.length === 0) {
+            frontlineToRender = null;
+        }
     }
 
-    // Ensure we have a valid frontline to render
+    // Fallback to current frontline if interpolation failed or not animating
     if (!frontlineToRender || frontlineToRender.length === 0) {
         frontlineToRender = game.frontline;
+    }
+
+    // Safety check - ensure we have a valid frontline
+    if (!frontlineToRender || frontlineToRender.length < 2) {
+        console.error('Invalid frontline in render:', frontlineToRender);
+        return; // Skip this frame
     }
 
     // Draw territories
