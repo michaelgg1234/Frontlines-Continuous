@@ -231,12 +231,14 @@ function confirmDeployment() {
     // Store forces for current player
     if (game.currentPlayer === 'red') {
         game.redForces = [...game.currentForces];
+        console.log('Red deployed:', game.redForces.length, 'arrows');
         game.currentForces = [];
         game.currentPlayer = 'blue';
         startTimer(); // Restart timer for blue player
         updateUI();
     } else {
         game.blueForces = [...game.currentForces];
+        console.log('Blue deployed:', game.blueForces.length, 'arrows');
         game.currentForces = [];
 
         // Clear timer before starting animation
@@ -343,6 +345,11 @@ function getForceAtPoint(x, y, forceVectors) {
 
 // Combat Resolution
 function resolveCombat() {
+    // Debug logging
+    console.log('=== COMBAT RESOLUTION ===');
+    console.log('Red forces:', game.redForces.length, game.redForces);
+    console.log('Blue forces:', game.blueForces.length, game.blueForces);
+
     // Deep copy the current frontline before changing phase
     game.oldFrontline = game.frontline.map(p => ({ x: p.x, y: p.y }));
 
@@ -356,6 +363,11 @@ function resolveCombat() {
         const redForce = getForceAtPoint(point.x, point.y, game.redForces);
         const blueForce = getForceAtPoint(point.x, point.y, game.blueForces);
         const netForce = redForce - blueForce;
+
+        // Debug sample point
+        if (i === Math.floor(game.frontline.length / 2)) {
+            console.log('Middle point force - Red:', redForce.toFixed(2), 'Blue:', blueForce.toFixed(2), 'Net:', netForce.toFixed(2));
+        }
 
         // Calculate movement
         let movement = MOVEMENT_CONSTANT * Math.sign(netForce) * Math.sqrt(Math.abs(netForce));
