@@ -11,10 +11,11 @@ const MAX_ARROWS_PER_TURN = 10;
 const GAUSSIAN_SIGMA = 50;
 const GAUSSIAN_RADIUS = 150; // 3 * sigma
 const FRONTLINE_SAMPLE_INTERVAL = 5;
-const MOVEMENT_CONSTANT = 20;
-const MAX_MOVEMENT_PER_TURN = 200;
+const MOVEMENT_CONSTANT = 35;
+const MAX_MOVEMENT_PER_TURN = 350;
 const TURN_TIME_LIMIT = 30;
-const ANIMATION_DURATION = 4000; // 4 seconds for smoother animation
+const ARROW_FLASH_DURATION = 1000; // 1 second to show arrows
+const ANIMATION_DURATION = 3000; // 3 seconds for frontline movement
 
 // Game State
 class GameState {
@@ -159,16 +160,26 @@ function handleMouseMove(e) {
     const dy = y - game.dragStart.y;
     const length = Math.sqrt(dx * dx + dy * dy);
 
-    // Constrain arrow length
-    const constrainedLength = Math.min(length, MAX_ARROW_LENGTH);
-    const magnitude = (constrainedLength / MAX_ARROW_LENGTH) * MAX_FORCE_PER_ARROW;
-
     if (length > 0) {
+        // Calculate magnitude based on length
+        const constrainedLength = Math.min(length, MAX_ARROW_LENGTH);
+        let magnitude = (constrainedLength / MAX_ARROW_LENGTH) * MAX_FORCE_PER_ARROW;
+
+        // Snap to remaining force if arrow would exceed it
+        const forceAvailable = game.forceRemaining[game.currentPlayer];
+        if (magnitude > forceAvailable) {
+            magnitude = forceAvailable;
+        }
+
+        // Calculate the actual length for this magnitude
+        const actualLength = (magnitude / MAX_FORCE_PER_ARROW) * MAX_ARROW_LENGTH;
+
+        // Update arrow position
         const normalizedDx = dx / length;
         const normalizedDy = dy / length;
 
-        game.currentArrow.endX = game.dragStart.x + normalizedDx * constrainedLength;
-        game.currentArrow.endY = game.dragStart.y + normalizedDy * constrainedLength;
+        game.currentArrow.endX = game.dragStart.x + normalizedDx * actualLength;
+        game.currentArrow.endY = game.dragStart.y + normalizedDy * actualLength;
         game.currentArrow.magnitude = magnitude;
     }
 }
@@ -180,8 +191,8 @@ function handleMouseUp(e) {
     const dy = game.currentArrow.endY - game.currentArrow.startY;
     const length = Math.sqrt(dx * dx + dy * dy);
 
-    // Only add arrow if it meets minimum length and we have enough force
-    if (length >= MIN_ARROW_LENGTH && game.currentArrow.magnitude <= game.forceRemaining[game.currentPlayer]) {
+    // Only add arrow if it meets minimum length (force is already clamped in handleMouseMove)
+    if (length >= MIN_ARROW_LENGTH && game.currentArrow.magnitude > 0) {
         game.currentForces.push({ ...game.currentArrow });
         game.forceRemaining[game.currentPlayer] -= game.currentArrow.magnitude;
         updateUI();
@@ -404,12 +415,22 @@ function smoothFrontline(frontline) {
 
 function animateCombatResolution() {
     const startTime = Date.now();
+    const totalDuration = ARROW_FLASH_DURATION + ANIMATION_DURATION;
 
     function animate() {
         const elapsed = Date.now() - startTime;
-        game.animationProgress = Math.min(elapsed / ANIMATION_DURATION, 1);
 
-        if (game.animationProgress < 1) {
+        if (elapsed < totalDuration) {
+            // Calculate progress within each phase
+            if (elapsed < ARROW_FLASH_DURATION) {
+                // Phase 1: Flash arrows (show them)
+                game.animationProgress = 0; // Frontline doesn't move yet
+            } else {
+                // Phase 2: Animate frontline movement
+                const movementElapsed = elapsed - ARROW_FLASH_DURATION;
+                game.animationProgress = Math.min(movementElapsed / ANIMATION_DURATION, 1);
+            }
+
             requestAnimationFrame(animate);
         } else {
             // Animation complete - update frontline before clearing animation data
@@ -685,7 +706,7 @@ function render() {
     // Draw territories
     drawTerritories(frontlineToRender);
 
-    // Only show arrows during deployment phase
+    // Show arrows during deployment phase
     if (game.phase === 'deployment') {
         const color = game.currentPlayer === 'red' ? '#dc2626' : '#3b82f6';
         drawForceVectors(game.currentForces, color, 1);
@@ -695,6 +716,13 @@ function render() {
             drawArrow(game.currentArrow, color, 0.7);
             drawGaussianPreview(game.currentArrow, color);
         }
+    }
+
+    // Flash both teams' arrows during animation phase
+    if (game.phase === 'animation' && (game.redForces.length > 0 || game.blueForces.length > 0)) {
+        // Draw both teams' arrows
+        drawForceVectors(game.redForces, '#dc2626', 1);
+        drawForceVectors(game.blueForces, '#3b82f6', 1);
     }
 
     // Draw frontline
