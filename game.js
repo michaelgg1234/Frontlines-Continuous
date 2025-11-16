@@ -6,13 +6,13 @@ const CANVAS_HEIGHT = 900;
 const MAX_FORCE = 100;
 const MAX_FORCE_PER_ARROW = 25;
 const MAX_ARROW_LENGTH = 200;
-const MIN_ARROW_LENGTH = 10;
-const MAX_ARROWS_PER_TURN = 5;
+const MIN_ARROW_LENGTH = 5;
+const MAX_ARROWS_PER_TURN = 10;
 const GAUSSIAN_SIGMA = 50;
 const GAUSSIAN_RADIUS = 150; // 3 * sigma
 const FRONTLINE_SAMPLE_INTERVAL = 5;
-const MOVEMENT_CONSTANT = 10;
-const MAX_MOVEMENT_PER_TURN = 100;
+const MOVEMENT_CONSTANT = 20;
+const MAX_MOVEMENT_PER_TURN = 200;
 const TURN_TIME_LIMIT = 30;
 const ANIMATION_DURATION = 2000; // 2 seconds
 
@@ -637,19 +637,7 @@ function render() {
     // Draw territories
     drawTerritories(frontlineToRender);
 
-    // Draw force vectors during animation
-    if (game.phase === 'animation') {
-        const alpha = 1 - game.animationProgress * 0.7;
-        drawForceVectors(game.redForces, '#dc2626', alpha);
-        drawForceVectors(game.blueForces, '#3b82f6', alpha);
-
-        // Draw gaussian overlays
-        if (game.animationProgress < 0.5) {
-            drawGaussianOverlays();
-        }
-    }
-
-    // Draw current deployment arrows
+    // Only show arrows during deployment phase
     if (game.phase === 'deployment') {
         const color = game.currentPlayer === 'red' ? '#dc2626' : '#3b82f6';
         drawForceVectors(game.currentForces, color, 1);
@@ -670,25 +658,29 @@ function drawTerritories(frontline) {
     ctx.fillStyle = 'rgba(220, 38, 38, 0.3)';
     ctx.beginPath();
     ctx.moveTo(0, 0);
+    ctx.lineTo(frontline[0].x, frontline[0].y);
 
-    for (let point of frontline) {
-        ctx.lineTo(point.x, point.y);
+    for (let i = 1; i < frontline.length; i++) {
+        ctx.lineTo(frontline[i].x, frontline[i].y);
     }
 
     ctx.lineTo(0, CANVAS_HEIGHT);
+    ctx.lineTo(0, 0);
     ctx.closePath();
     ctx.fill();
 
     // Blue territory (right of frontline)
     ctx.fillStyle = 'rgba(59, 130, 246, 0.3)';
     ctx.beginPath();
-    ctx.moveTo(CANVAS_WIDTH, 0);
+    ctx.moveTo(frontline[0].x, frontline[0].y);
 
-    for (let i = frontline.length - 1; i >= 0; i--) {
+    for (let i = 1; i < frontline.length; i++) {
         ctx.lineTo(frontline[i].x, frontline[i].y);
     }
 
     ctx.lineTo(CANVAS_WIDTH, CANVAS_HEIGHT);
+    ctx.lineTo(CANVAS_WIDTH, 0);
+    ctx.lineTo(frontline[0].x, frontline[0].y);
     ctx.closePath();
     ctx.fill();
 }
