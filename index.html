@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Frontlines Continuous</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="game-container">
+        <!-- Left Panel: Player Info -->
+        <div id="left-panel" class="panel">
+            <div id="current-player-indicator">
+                <h2>Current Turn</h2>
+                <div id="player-color-indicator" class="red-player">
+                    <span id="player-name">RED PLAYER</span>
+                </div>
+            </div>
+            <div id="turn-info">
+                <p>Turn: <span id="turn-number">1</span></p>
+                <p>Phase: <span id="phase-name">Deployment</span></p>
+            </div>
+            <div id="instructions">
+                <h3>Instructions</h3>
+                <p>Click on the frontline and drag to create force vectors.</p>
+                <p>Longer arrows = more force</p>
+                <p>Max: 25 force per arrow</p>
+                <p>Max: 5 arrows per turn</p>
+            </div>
+        </div>
+
+        <!-- Main Canvas -->
+        <div id="canvas-container">
+            <canvas id="game-canvas" width="1600" height="900"></canvas>
+            <div id="timer-overlay">
+                <span id="timer-display">30</span>
+            </div>
+        </div>
+
+        <!-- Right Panel: Force Info -->
+        <div id="right-panel" class="panel">
+            <div id="force-info">
+                <h3>Force Remaining</h3>
+                <div id="force-bars">
+                    <div class="force-bar-container">
+                        <label>RED</label>
+                        <div class="force-bar-bg">
+                            <div id="red-force-bar" class="force-bar red-bar" style="height: 100%;">
+                                <span class="force-value">100</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="force-bar-container">
+                        <label>BLUE</label>
+                        <div class="force-bar-bg">
+                            <div id="blue-force-bar" class="force-bar blue-bar" style="height: 100%;">
+                                <span class="force-value">100</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="territory-info">
+                <h3>Territory Control</h3>
+                <div class="territory-stat">
+                    <span class="territory-label red-text">RED:</span>
+                    <span id="red-territory-percent">50.0%</span>
+                </div>
+                <div class="territory-stat">
+                    <span class="territory-label blue-text">BLUE:</span>
+                    <span id="blue-territory-percent">50.0%</span>
+                </div>
+                <div id="territory-bar">
+                    <div id="red-territory-fill" style="width: 50%;"></div>
+                    <div id="blue-territory-fill" style="width: 50%;"></div>
+                </div>
+            </div>
+
+            <div id="deployment-controls">
+                <button id="undo-btn" class="control-btn" disabled>Undo Last Arrow</button>
+                <button id="clear-btn" class="control-btn" disabled>Clear All</button>
+                <button id="confirm-btn" class="control-btn confirm" disabled>Confirm Deployment</button>
+            </div>
+
+            <div id="arrow-count">
+                <p>Arrows: <span id="arrow-count-display">0</span>/5</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Victory Modal -->
+    <div id="victory-modal" class="modal hidden">
+        <div class="modal-content">
+            <h1 id="victory-title">VICTORY!</h1>
+            <p id="victory-message"></p>
+            <button id="new-game-btn" class="control-btn confirm">New Game</button>
+        </div>
+    </div>
+
+    <script src="game.js"></script>
+</body>
+</html>
