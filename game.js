@@ -11,8 +11,8 @@ const MAX_ARROWS_PER_TURN = 10;
 const GAUSSIAN_SIGMA = 50;
 const GAUSSIAN_RADIUS = 150; // 3 * sigma
 const FRONTLINE_SAMPLE_INTERVAL = 5;
-const MOVEMENT_CONSTANT = 600;
-const MAX_MOVEMENT_PER_TURN = 2000;
+const MOVEMENT_CONSTANT = 350;
+const MAX_MOVEMENT_PER_TURN = 1200;
 const TURN_TIME_LIMIT = 30;
 const ARROW_FLASH_DURATION = 1000; // 1 second to show arrows
 const ANIMATION_DURATION = 3000; // 3 seconds for frontline movement
@@ -25,6 +25,7 @@ class GameState {
         this.phase = 'deployment'; // 'deployment', 'animation', 'gameover'
         this.timeRemaining = TURN_TIME_LIMIT;
         this.timerInterval = null;
+        this.gameMode = null; // 'human-vs-human' or 'human-vs-ai'
 
         // Frontline control points
         this.frontline = this.initializeFrontline();
@@ -120,12 +121,19 @@ function setupEventListeners() {
     document.getElementById('clear-btn').addEventListener('click', clearAllArrows);
     document.getElementById('confirm-btn').addEventListener('click', confirmDeployment);
     document.getElementById('new-game-btn').addEventListener('click', newGame);
+
+    // Game mode selection buttons
+    document.getElementById('mode-human-btn').addEventListener('click', () => startGameWithMode('human-vs-human'));
+    document.getElementById('mode-ai-btn').addEventListener('click', () => startGameWithMode('human-vs-ai'));
 }
 
 // Mouse Handlers
 function handleMouseDown(e) {
     if (game.phase !== 'deployment') return;
     if (game.currentForces.length >= MAX_ARROWS_PER_TURN) return;
+
+    // Prevent human input during AI's turn
+    if (game.gameMode === 'human-vs-ai' && game.currentPlayer === 'blue') return;
 
     const rect = canvas.getBoundingClientRect();
     const x = (e.clientX - rect.left) * (CANVAS_WIDTH / rect.width);
@@ -301,6 +309,11 @@ function confirmDeployment() {
         game.currentPlayer = 'blue';
         startTimer(); // Restart timer for blue player
         updateUI();
+
+        // If AI mode, trigger AI turn after a short delay
+        if (game.gameMode === 'human-vs-ai') {
+            setTimeout(executeAITurn, 1000);
+        }
     } else {
         game.blueForces = [...game.currentForces];
         game.currentForces = [];
@@ -318,9 +331,20 @@ function confirmDeployment() {
 
 function newGame() {
     document.getElementById('victory-modal').classList.add('hidden');
+    document.getElementById('mode-modal').classList.remove('hidden');
     game.reset();
+}
+
+function startGameWithMode(mode) {
+    game.gameMode = mode;
+    document.getElementById('mode-modal').classList.add('hidden');
     startTimer();
     updateUI();
+
+    // If AI mode and blue's turn, trigger AI move
+    if (mode === 'human-vs-ai' && game.currentPlayer === 'blue') {
+        setTimeout(executeAITurn, 1000);
+    }
 }
 
 // Frontline Utilities
@@ -407,6 +431,68 @@ function getForceAtPoint(x, y, forceVectors) {
     }
 
     return totalForce;
+}
+
+// AI Logic
+function executeAITurn() {
+    if (game.currentPlayer !== 'blue' || game.gameMode !== 'human-vs-ai') return;
+    if (game.phase !== 'deployment') return;
+
+    // Clear any existing blue forces for this turn
+    game.currentForces = [];
+
+    // AI strategy: Deploy 3-5 arrows at strategic points
+    const numArrows = 3 + Math.floor(Math.random() * 3); // 3-5 arrows
+    let forceRemaining = MAX_FORCE;
+
+    for (let i = 0; i < numArrows && forceRemaining > 5; i++) {
+        // Choose a random point along the frontline
+        const pointIndex = Math.floor(Math.random() * game.frontline.length);
+        const deployPoint = game.frontline[pointIndex];
+
+        // Determine arrow strength (distribute force somewhat evenly)
+        const avgForcePerArrow = forceRemaining / (numArrows - i);
+        const variation = avgForcePerArrow * 0.4; // ±40% variation
+        let magnitude = avgForcePerArrow + (Math.random() - 0.5) * 2 * variation;
+        magnitude = Math.max(5, Math.min(magnitude, MAX_FORCE_PER_ARROW, forceRemaining));
+
+        // Calculate arrow length from magnitude
+        const arrowLength = (magnitude / MAX_FORCE_PER_ARROW) * MAX_ARROW_LENGTH;
+
+        // AI always points left (into red territory) - use frontline normal with some variation
+        const normal = getFrontlineNormal(deployPoint.x, deployPoint.y);
+
+        // Add some randomness to direction (±30 degrees)
+        const angleVariation = (Math.random() - 0.5) * Math.PI / 3; // ±30 degrees
+        const cos = Math.cos(angleVariation);
+        const sin = Math.sin(angleVariation);
+        const dx = normal.x * cos - normal.y * sin;
+        const dy = normal.x * sin + normal.y * cos;
+
+        // Create arrow
+        const arrow = {
+            startX: deployPoint.x,
+            startY: deployPoint.y,
+            endX: deployPoint.x + dx * arrowLength,
+            endY: deployPoint.y + dy * arrowLength,
+            magnitude: magnitude
+        };
+
+        game.currentForces.push(arrow);
+        forceRemaining -= magnitude;
+    }
+
+    // Update force remaining
+    game.forceRemaining.blue = forceRemaining;
+
+    // Auto-confirm after a short delay
+    setTimeout(() => {
+        if (game.currentPlayer === 'blue' && game.phase === 'deployment') {
+            confirmDeployment();
+        }
+    }, 1500);
+
+    updateUI();
 }
 
 // Combat Resolution
@@ -695,7 +781,13 @@ function updateUI() {
     const playerName = document.getElementById('player-name');
 
     playerIndicator.className = game.currentPlayer === 'red' ? 'red-player' : 'blue-player';
-    playerName.textContent = game.currentPlayer === 'red' ? 'RED PLAYER' : 'BLUE PLAYER';
+
+    // Show AI indicator when appropriate
+    if (game.currentPlayer === 'red') {
+        playerName.textContent = 'RED PLAYER';
+    } else {
+        playerName.textContent = game.gameMode === 'human-vs-ai' ? 'BLUE AI' : 'BLUE PLAYER';
+    }
 
     // Turn info
     document.getElementById('turn-number').textContent = game.turn;
@@ -734,10 +826,12 @@ function updateUI() {
 
     const hasArrows = game.currentForces.length > 0;
     const canDeploy = game.phase === 'deployment';
+    const isAITurn = game.gameMode === 'human-vs-ai' && game.currentPlayer === 'blue';
 
-    undoBtn.disabled = !hasArrows || !canDeploy;
-    clearBtn.disabled = !hasArrows || !canDeploy;
-    confirmBtn.disabled = !canDeploy;
+    // Disable all buttons during AI's turn
+    undoBtn.disabled = !hasArrows || !canDeploy || isAITurn;
+    clearBtn.disabled = !hasArrows || !canDeploy || isAITurn;
+    confirmBtn.disabled = !canDeploy || isAITurn;
 }
 
 // Rendering
