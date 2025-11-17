@@ -11,8 +11,8 @@ const MAX_ARROWS_PER_TURN = 10;
 const GAUSSIAN_SIGMA = 50;
 const GAUSSIAN_RADIUS = 150; // 3 * sigma
 const FRONTLINE_SAMPLE_INTERVAL = 5;
-const MOVEMENT_CONSTANT = 200;
-const MAX_MOVEMENT_PER_TURN = 1000;
+const MOVEMENT_CONSTANT = 600;
+const MAX_MOVEMENT_PER_TURN = 2000;
 const TURN_TIME_LIMIT = 30;
 const ARROW_FLASH_DURATION = 1000; // 1 second to show arrows
 const ANIMATION_DURATION = 3000; // 3 seconds for frontline movement
@@ -146,6 +146,56 @@ function handleMouseDown(e) {
     }
 }
 
+// Helper function to calculate frontline normal at a point
+function getFrontlineNormal(x, y) {
+    // Find nearest frontline point index
+    let nearestIndex = 0;
+    let minDist = Infinity;
+
+    for (let i = 0; i < game.frontline.length; i++) {
+        const dist = Math.sqrt(
+            (game.frontline[i].x - x) ** 2 +
+            (game.frontline[i].y - y) ** 2
+        );
+        if (dist < minDist) {
+            minDist = dist;
+            nearestIndex = i;
+        }
+    }
+
+    // Get adjacent points to calculate tangent
+    const prevIndex = Math.max(0, nearestIndex - 1);
+    const nextIndex = Math.min(game.frontline.length - 1, nearestIndex + 1);
+
+    const p1 = game.frontline[prevIndex];
+    const p2 = game.frontline[nextIndex];
+
+    // Calculate tangent vector along frontline
+    const tx = p2.x - p1.x;
+    const ty = p2.y - p1.y;
+    const tLength = Math.sqrt(tx * tx + ty * ty);
+
+    if (tLength === 0) {
+        // Fallback: horizontal normal pointing right for red, left for blue
+        return game.currentPlayer === 'red' ? { x: 1, y: 0 } : { x: -1, y: 0 };
+    }
+
+    // Normal is perpendicular to tangent
+    // For red player, normal points right (into blue territory)
+    // For blue player, normal points left (into red territory)
+    const normalX = -ty / tLength; // Perpendicular to tangent
+    const normalY = tx / tLength;
+
+    // Ensure normal points in correct direction
+    if (game.currentPlayer === 'red' && normalX < 0) {
+        return { x: -normalX, y: -normalY };
+    } else if (game.currentPlayer === 'blue' && normalX > 0) {
+        return { x: -normalX, y: -normalY };
+    }
+
+    return { x: normalX, y: normalY };
+}
+
 function handleMouseMove(e) {
     if (!game.isDragging || game.phase !== 'deployment') return;
 
@@ -154,9 +204,17 @@ function handleMouseMove(e) {
     const y = (e.clientY - rect.top) * (CANVAS_HEIGHT / rect.height);
 
     // Update current arrow
-    const dx = x - game.dragStart.x;
-    const dy = y - game.dragStart.y;
-    const length = Math.sqrt(dx * dx + dy * dy);
+    let dx = x - game.dragStart.x;
+    let dy = y - game.dragStart.y;
+    let length = Math.sqrt(dx * dx + dy * dy);
+
+    // If Shift key is held, snap to frontline normal
+    if (e.shiftKey) {
+        const normal = getFrontlineNormal(game.dragStart.x, game.dragStart.y);
+        dx = normal.x * length;
+        dy = normal.y * length;
+        length = Math.sqrt(dx * dx + dy * dy);
+    }
 
     if (length > 0) {
         // Calculate magnitude based on length
@@ -189,8 +247,18 @@ function handleMouseUp(e) {
     const dy = game.currentArrow.endY - game.currentArrow.startY;
     const length = Math.sqrt(dx * dx + dy * dy);
 
-    // Only add arrow if it meets minimum length (force is already clamped in handleMouseMove)
-    if (length >= MIN_ARROW_LENGTH && game.currentArrow.magnitude > 0) {
+    // Validate arrow direction: prevent arrows pointing into own territory
+    let isValidDirection = true;
+    if (game.currentPlayer === 'red' && dx < 0) {
+        // Red arrows must point right (into blue territory)
+        isValidDirection = false;
+    } else if (game.currentPlayer === 'blue' && dx > 0) {
+        // Blue arrows must point left (into red territory)
+        isValidDirection = false;
+    }
+
+    // Only add arrow if it meets minimum length, has force, and points in valid direction
+    if (length >= MIN_ARROW_LENGTH && game.currentArrow.magnitude > 0 && isValidDirection) {
         game.currentForces.push({ ...game.currentArrow });
         game.forceRemaining[game.currentPlayer] -= game.currentArrow.magnitude;
         updateUI();
