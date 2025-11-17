@@ -324,9 +324,11 @@ function getForceAtPoint(x, y, forceVectors) {
     let totalForce = 0;
 
     for (let vector of forceVectors) {
+        // Calculate distance along frontline from where arrow was deployed (startX, startY)
+        // This spreads the Gaussian effect along the frontline from the deployment point
         const distance = Math.sqrt(
-            (x - vector.endX) ** 2 +
-            (y - vector.endY) ** 2
+            (x - vector.startX) ** 2 +
+            (y - vector.startY) ** 2
         );
 
         // Gaussian distribution
