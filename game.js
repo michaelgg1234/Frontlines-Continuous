@@ -430,8 +430,9 @@ function catmullRom(p0, p1, p2, p3, t) {
 }
 
 // Gaussian Force Calculations
-function getForceAtPoint(x, y, forceVectors) {
-    let totalForce = 0;
+function getForceVectorAtPoint(x, y, forceVectors) {
+    let totalForceX = 0;
+    let totalForceY = 0;
 
     for (let vector of forceVectors) {
         // Calculate distance along frontline from where arrow was deployed (startX, startY)
@@ -445,10 +446,22 @@ function getForceAtPoint(x, y, forceVectors) {
         const gaussianEffect = vector.magnitude *
             Math.exp(-(distance * distance) / (2 * GAUSSIAN_SIGMA * GAUSSIAN_SIGMA));
 
-        totalForce += gaussianEffect;
+        // Calculate the direction of this force arrow
+        const dx = vector.endX - vector.startX;
+        const dy = vector.endY - vector.startY;
+        const length = Math.sqrt(dx * dx + dy * dy);
+
+        if (length > 0) {
+            // Normalize direction and apply Gaussian-weighted force in that direction
+            const forceX = (dx / length) * gaussianEffect;
+            const forceY = (dy / length) * gaussianEffect;
+
+            totalForceX += forceX;
+            totalForceY += forceY;
+        }
     }
 
-    return totalForce;
+    return { x: totalForceX, y: totalForceY };
 }
 
 // AI Logic
@@ -520,38 +533,54 @@ function resolveCombat() {
 
     // Calculate new frontline positions
     const newFrontline = [];
-    let totalRedForce = 0;
-    let totalBlueForce = 0;
+    let totalRedForceMag = 0;
+    let totalBlueForceMag = 0;
 
     for (let i = 0; i < game.frontline.length; i++) {
         const point = game.frontline[i];
 
-        // Calculate net force at this frontline point
-        const redForce = getForceAtPoint(point.x, point.y, game.redForces);
-        const blueForce = getForceAtPoint(point.x, point.y, game.blueForces);
-        const netForce = redForce - blueForce;
+        // Calculate net force VECTOR at this frontline point
+        const redForceVec = getForceVectorAtPoint(point.x, point.y, game.redForces);
+        const blueForceVec = getForceVectorAtPoint(point.x, point.y, game.blueForces);
 
-        totalRedForce += redForce;
-        totalBlueForce += blueForce;
+        // Net force is the sum of red and blue force vectors
+        const netForceX = redForceVec.x + blueForceVec.x;
+        const netForceY = redForceVec.y + blueForceVec.y;
+        const netForceMagnitude = Math.sqrt(netForceX * netForceX + netForceY * netForceY);
 
-        // Calculate movement
-        let movement = MOVEMENT_CONSTANT * Math.sign(netForce) * Math.sqrt(Math.abs(netForce));
-        movement = Math.max(-MAX_MOVEMENT_PER_TURN, Math.min(MAX_MOVEMENT_PER_TURN, movement));
+        // Track total force for debugging
+        totalRedForceMag += Math.sqrt(redForceVec.x * redForceVec.x + redForceVec.y * redForceVec.y);
+        totalBlueForceMag += Math.sqrt(blueForceVec.x * blueForceVec.x + blueForceVec.y * blueForceVec.y);
 
-        // Red force pushes right (positive X), blue force pushes left (negative X)
-        let newX = point.x + movement;
+        // Calculate movement magnitude
+        let movementMag = MOVEMENT_CONSTANT * Math.sqrt(netForceMagnitude);
+        movementMag = Math.min(movementMag, MAX_MOVEMENT_PER_TURN);
+
+        // Apply movement in the direction of the net force vector
+        let movementX = 0;
+        let movementY = 0;
+
+        if (netForceMagnitude > 0) {
+            movementX = (netForceX / netForceMagnitude) * movementMag;
+            movementY = (netForceY / netForceMagnitude) * movementMag;
+        }
+
+        // Calculate new position
+        let newX = point.x + movementX;
+        let newY = point.y + movementY;
 
         // Constrain to canvas bounds
         newX = Math.max(50, Math.min(CANVAS_WIDTH - 50, newX));
+        newY = Math.max(0, Math.min(CANVAS_HEIGHT, newY));
 
-        newFrontline.push({ x: newX, y: point.y });
+        newFrontline.push({ x: newX, y: newY });
     }
 
     // Smooth the new frontline and deep copy
     game.newFrontline = smoothFrontline(newFrontline).map(p => ({ x: p.x, y: p.y }));
 
     // Debug logging
-    console.log(`Turn ${game.turn} Combat - Red: ${game.redForces.length} arrows (${totalRedForce.toFixed(1)} force), Blue: ${game.blueForces.length} arrows (${totalBlueForce.toFixed(1)} force)`);
+    console.log(`Turn ${game.turn} Combat - Red: ${game.redForces.length} arrows (${totalRedForceMag.toFixed(1)} force), Blue: ${game.blueForces.length} arrows (${totalBlueForceMag.toFixed(1)} force)`);
 
     // Sample a few arrow positions for debugging
     if (game.redForces.length > 0) {
@@ -576,25 +605,27 @@ function smoothFrontline(frontline) {
         return frontline;
     }
 
-    // Apply simple moving average smoothing
+    // Apply simple moving average smoothing to both X and Y
     const smoothed = [];
     const windowSize = 3;
 
     for (let i = 0; i < frontline.length; i++) {
         let sumX = 0;
+        let sumY = 0;
         let count = 0;
 
         for (let j = -windowSize; j <= windowSize; j++) {
             const index = i + j;
             if (index >= 0 && index < frontline.length) {
                 sumX += frontline[index].x;
+                sumY += frontline[index].y;
                 count++;
             }
         }
 
         smoothed.push({
             x: sumX / count,
-            y: frontline[i].y
+            y: sumY / count
         });
     }
 
