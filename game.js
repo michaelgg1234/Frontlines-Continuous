@@ -11,8 +11,8 @@ const MAX_ARROWS_PER_TURN = 10;
 const GAUSSIAN_SIGMA = 50;
 const GAUSSIAN_RADIUS = 150; // 3 * sigma
 const FRONTLINE_SAMPLE_INTERVAL = 5;
-const MOVEMENT_CONSTANT = 350;
-const MAX_MOVEMENT_PER_TURN = 1200;
+const MOVEMENT_CONSTANT = 250;
+const MAX_MOVEMENT_PER_TURN = 800;
 const TURN_TIME_LIMIT = 30;
 const ARROW_FLASH_DURATION = 1000; // 1 second to show arrows
 const ANIMATION_DURATION = 3000; // 3 seconds for frontline movement
@@ -352,6 +352,8 @@ function findNearestFrontlinePoint(x, y) {
     let nearest = null;
     let minDist = Infinity;
 
+    // Sample along the frontline more densely to handle curves
+    // Check both control points and interpolated points between them
     for (let i = 0; i < game.frontline.length; i++) {
         const point = game.frontline[i];
         const dist = Math.sqrt((x - point.x) ** 2 + (y - point.y) ** 2);
@@ -359,6 +361,22 @@ function findNearestFrontlinePoint(x, y) {
         if (dist < minDist) {
             minDist = dist;
             nearest = { x: point.x, y: point.y, distance: dist, index: i };
+        }
+
+        // Also sample between this point and the next
+        if (i < game.frontline.length - 1) {
+            const nextPoint = game.frontline[i + 1];
+            // Sample 3 intermediate points between control points
+            for (let t = 0.25; t <= 0.75; t += 0.25) {
+                const interpX = point.x + (nextPoint.x - point.x) * t;
+                const interpY = point.y + (nextPoint.y - point.y) * t;
+                const interpDist = Math.sqrt((x - interpX) ** 2 + (y - interpY) ** 2);
+
+                if (interpDist < minDist) {
+                    minDist = interpDist;
+                    nearest = { x: interpX, y: interpY, distance: interpDist, index: i };
+                }
+            }
         }
     }
 
