@@ -11,8 +11,8 @@ const MAX_ARROWS_PER_TURN = 10;
 const GAUSSIAN_SIGMA = 50;
 const GAUSSIAN_RADIUS = 150; // 3 * sigma
 const FRONTLINE_SAMPLE_INTERVAL = 5;
-const MOVEMENT_CONSTANT = 250;
-const MAX_MOVEMENT_PER_TURN = 800;
+const MOVEMENT_CONSTANT = 150;
+const MAX_MOVEMENT_PER_TURN = 500;
 const TURN_TIME_LIMIT = 30;
 const ARROW_FLASH_DURATION = 1000; // 1 second to show arrows
 const ANIMATION_DURATION = 3000; // 3 seconds for frontline movement
@@ -141,7 +141,7 @@ function handleMouseDown(e) {
 
     // Check if click is near frontline
     const nearestPoint = findNearestFrontlinePoint(x, y);
-    if (nearestPoint && nearestPoint.distance < 30) {
+    if (nearestPoint && nearestPoint.distance < 50) {
         game.isDragging = true;
         game.dragStart = { x: nearestPoint.x, y: nearestPoint.y };
         game.currentArrow = {
@@ -366,8 +366,8 @@ function findNearestFrontlinePoint(x, y) {
         // Also sample between this point and the next
         if (i < game.frontline.length - 1) {
             const nextPoint = game.frontline[i + 1];
-            // Sample 3 intermediate points between control points
-            for (let t = 0.25; t <= 0.75; t += 0.25) {
+            // Sample 9 intermediate points between control points (every 10%)
+            for (let t = 0.1; t <= 0.9; t += 0.1) {
                 const interpX = point.x + (nextPoint.x - point.x) * t;
                 const interpY = point.y + (nextPoint.y - point.y) * t;
                 const interpDist = Math.sqrt((x - interpX) ** 2 + (y - interpY) ** 2);
