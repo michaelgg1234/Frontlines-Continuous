@@ -57,8 +57,8 @@ class GameState {
         const points = [];
         const centerX = CANVAS_WIDTH / 2;
 
-        // Create control points every 20 pixels vertically - perfectly straight
-        for (let y = 0; y <= CANVAS_HEIGHT; y += 20) {
+        // Create control points every 10 pixels vertically for uniform force distribution
+        for (let y = 0; y <= CANVAS_HEIGHT; y += 10) {
             points.push({ x: centerX, y: y });
         }
 
